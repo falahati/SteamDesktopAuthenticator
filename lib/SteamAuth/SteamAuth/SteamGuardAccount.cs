@@ -167,7 +167,7 @@ namespace SteamAuth
             List<Confirmation> ret = new List<Confirmation>();
             foreach (Confirmations.Confirmations_Conf confirmation in json.conf)
             {
-                ret.Add(new Confirmation(confirmation.ID, confirmation.Key, confirmation.IntType, confirmation.Creator));
+                ret.Add(new Confirmation(confirmation.ID, confirmation.Key, confirmation.IntType, confirmation.Creator, confirmation.Icon, confirmation.Name, confirmation.Summary, confirmation.Created));
             }
 
             return ret.ToArray();
@@ -409,14 +409,27 @@ namespace SteamAuth
             {
                 [JsonProperty("id")]
                 public ulong ID { get; set; }
+
                 [JsonProperty("nonce")]
                 public ulong Key { get; set; }
+
                 [JsonProperty("type")]
                 public int IntType { get; set; }
+
+                [JsonProperty("icon")]
+                public string Icon { get; set; }
+
+                [JsonProperty("headline")]
+                public string Name { get; set; }
+
+                [JsonProperty("summary")]
+                public List<string> Summary { get; set; }
+
                 [JsonProperty("creator_id")]
                 public ulong Creator { get; set; }
 
-
+                [JsonProperty("creation_time")]
+                public uint Created { get; set; }
             }
 
 
