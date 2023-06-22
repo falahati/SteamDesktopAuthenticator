@@ -9,113 +9,67 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Diagnostics;
-using CefSharp;
-using CefSharp.WinForms;
 using SteamAuth;
+using System.Net;
 
 namespace Steam_Desktop_Authenticator
 {
     public partial class ConfirmationFormWeb : Form
     {
-        private readonly ChromiumWebBrowser browser;
-        private string steamCookies;
         private SteamGuardAccount steamAccount;
-        private string tradeID;
 
-        public ConfirmationFormWeb(SteamGuardAccount steamAccount)
+        public ConfirmationFormWeb(SteamGuardAccount steamAccount, List<Confirmation> confirmations)
         {
             InitializeComponent();
             this.steamAccount = steamAccount;
             this.Text = String.Format("Trade Confirmations - {0}", steamAccount.AccountName);
+            this.loadConfirmations(confirmations);
+        }
+        
+        private async void btnRefresh_Click(object sender, EventArgs e)
+        {
+            List<Confirmation> confirmations = new List<Confirmation>();
 
-            CefSettings settings = new CefSettings();
-            settings.PersistSessionCookies = false;
-            settings.Locale = "en-US";
-            settings.UserAgent = "Mozilla/5.0 (Linux; Android 6.0; Nexus 6P Build/XXXXX; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/47.0.2526.68 Mobile Safari/537.36";
-            steamCookies = String.Format("mobileClientVersion=0 (2.1.3); mobileClient=android; steamid={0}; steamLoginSecure={1}; Steam_Language=english; dob=;", steamAccount.Session.SteamID.ToString(), steamAccount.Session.SteamLoginSecure);
-
-            if (!Cef.IsInitialized)
+            try
             {
-                Cef.Initialize(settings);
+                confirmations.AddRange(
+                    await steamAccount.FetchConfirmationsAsync()
+                );
+            }
+            catch (WebException)
+            {
+                this.Close();
             }
 
-            browser = new ChromiumWebBrowser(steamAccount.GenerateConfirmationURL())
-            {
-                Dock = DockStyle.Fill,
-            };
-            this.splitContainer1.Panel2.Controls.Add(browser);
-
-            BrowserRequestHandler handler = new BrowserRequestHandler();
-            handler.Cookies = steamCookies;
-            browser.RequestHandler = handler;
-            browser.AddressChanged += Browser_AddressChanged;
-            browser.LoadingStateChanged += Browser_LoadingStateChanged;
+            this.loadConfirmations(confirmations);
         }
 
-        private void Browser_LoadingStateChanged(object sender, LoadingStateChangedEventArgs e)
+        private void loadConfirmations(List<Confirmation> confirmations)
         {
-            // This looks really ugly, but it's easier than implementing steam's steammobile:// protocol using CefSharp
-            // We override the page's GetValueFromLocalURL() to pass in the keys for sending ajax requests
-            Debug.WriteLine("IsLoading: " + e.IsLoading);
-            if (e.IsLoading == false)
+            this.flp_confirmations.Controls.Clear();
+            foreach (var confirmation in confirmations)
             {
-                // Generate url for details
-                string urlParams = steamAccount.GenerateConfirmationQueryParams("details" + tradeID);
+                var item = new ConfirmationItem(
+                    confirmation
+                );
+                item.Accepted += ItemOnAccepted;
+                this.flp_confirmations.Controls.Add(item);
+            }
+        }
 
-                var script = string.Format(@"window.GetValueFromLocalURL = 
-                function(url, timeout, success, error, fatal) {{            
-                    console.log(url);
-                    if(url.indexOf('steammobile://steamguard?op=conftag&arg1=allow') !== -1) {{
-                        // send confirmation (allow)
-                        success('{0}');
-                    }} else if(url.indexOf('steammobile://steamguard?op=conftag&arg1=cancel') !== -1) {{
-                        // send confirmation (cancel)
-                        success('{1}');
-                    }} else if(url.indexOf('steammobile://steamguard?op=conftag&arg1=details') !== -1) {{
-                        // get details
-                        success('{2}');
-                    }}
-                }}", steamAccount.GenerateConfirmationQueryParams("allow"), steamAccount.GenerateConfirmationQueryParams("cancel"), urlParams);
-                try
+        private void ItemOnAccepted(object sender, Confirmation e)
+        {
+            try
+            {
+                if (this.steamAccount.AcceptConfirmation(e))
                 {
-                    browser.ExecuteScriptAsync(script);
-                }
-                catch (Exception)
-                {
-                    Debug.WriteLine("Failed to execute script");
+                    this.btnRefresh_Click(sender, EventArgs.Empty);
                 }
             }
-        }
-
-        private void Browser_AddressChanged(object sender, AddressChangedEventArgs e)
-        {
-            string[] urlparts = browser.Address.Split('#');
-            if (urlparts.Length > 1)
+            catch
             {
-                tradeID = urlparts[1].Replace("conf_", "");
+                // ignore
             }
-        }
-
-        private void btnRefresh_Click(object sender, EventArgs e)
-        {
-            browser.Load(steamAccount.GenerateConfirmationURL());
-        }
-
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-        {
-            bool bHandled = false;
-            switch (keyData)
-            {
-                case Keys.F5:
-                    browser.Load(steamAccount.GenerateConfirmationURL());
-                    bHandled = true;
-                    break;
-                case Keys.F1:
-                    browser.ShowDevTools();
-                    bHandled = true;
-                    break;
-            }
-            return bHandled;
         }
     }
 }

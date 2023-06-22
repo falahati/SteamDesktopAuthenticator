@@ -127,32 +127,30 @@ namespace Steam_Desktop_Authenticator
 
         private async void btnTradeConfirmations_Click(object sender, EventArgs e)
         {
-           
-
-            if (currentAccount == null) return;
+            if (currentAccount == null)
+            {
+                return;
+            }
 
             List<Confirmation> confs = new List<Confirmation>();
-            Dictionary<SteamGuardAccount, List<Confirmation>> autoAcceptConfirmations = new Dictionary<SteamGuardAccount, List<Confirmation>>();
 
             try
             {
                 Confirmation[] tmp = await currentAccount.FetchConfirmationsAsync();
                 foreach (var conf in tmp)
                 {
-                        autoAcceptConfirmations[currentAccount] = new List<Confirmation>();
-                        autoAcceptConfirmations[currentAccount].Add(conf);
-
+                    confs.Add(conf);
                 }
             }
             catch (SteamGuardAccount.WGTokenInvalidException)
             {
-                //Prompt to relogin
+                // Prompt to relogin
                 PromptRefreshLogin(currentAccount);
                 return;
             }
             catch (SteamGuardAccount.WGTokenExpiredException)
             {
-                //Prompt to relogin
+                // Prompt to relogin
                 PromptRefreshLogin(currentAccount);
                 return; //Don't bombard a user with login refresh requests if they have multiple accounts. Give them a few seconds to disable the autocheck option if they want.
             }
@@ -161,22 +159,18 @@ namespace Steam_Desktop_Authenticator
 
             }
 
-            if (autoAcceptConfirmations.Count > 0)
+            if (confs.Count == 0)
             {
-                foreach (var acc in autoAcceptConfirmations.Keys)
-                {
-                    var confirmations = autoAcceptConfirmations[acc].ToArray();
-                    acc.AcceptMultipleConfirmations(confirmations);
-            
-                }
+                return;
             }
 
+            new ConfirmationFormWeb(currentAccount, confs).ShowDialog(this);
 
-
-
-
-
-
+            //foreach (var acc in autoAcceptConfirmations.Keys)
+            //{
+            //    var confirmations = autoAcceptConfirmations[acc].ToArray();
+            //    acc.AcceptMultipleConfirmations(confirmations);
+            //}
         }
 
         private void btnManageEncryption_Click(object sender, EventArgs e)
